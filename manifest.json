@@ -1,0 +1,21 @@
+{
+  "name": "نظام مخالفات السلامة - شركة المحايد",
+  "short_name": "مخالفات MCE",
+  "description": "نظام تسجيل مخالفات السلامة للمقاولين - شركة المحايد مهندسون استشاريون",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#f3f6fa",
+  "theme_color": "#14335c",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
