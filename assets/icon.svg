@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14335c"/>
+      <stop offset="100%" stop-color="#0066a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+  <path d="M256 78 L406 138 V252 C406 346 341 416 256 444 C171 416 106 346 106 252 V138 Z" fill="none" stroke="#b58338" stroke-width="20"/>
+  <text x="256" y="255" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="96" font-weight="bold">MCE</text>
+  <text x="256" y="330" text-anchor="middle" fill="#e2e8f0" font-family="Tahoma, Arial, sans-serif" font-size="44" font-weight="bold">السلامة</text>
+</svg>
