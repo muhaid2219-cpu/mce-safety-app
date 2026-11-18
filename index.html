@@ -4,7 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <meta name="theme-color" content="#14335c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="مخالفات MCE" />
   <title>محضر مخالفة سلامة للمقاولين - شركة المحايد</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -14,9 +20,14 @@
     <div id="connectionStatusBadge" class="status-pill is-online">
       متصل بالإنترنت
     </div>
-    <button type="button" id="refreshSettingsBtn" class="btn-refresh-settings">
-      تحديث الإعدادات من الخادم
-    </button>
+    <div class="top-bar-actions">
+      <button type="button" id="installPwaBtn" class="btn-install-pwa">
+        تثبيت التطبيق على الجهاز
+      </button>
+      <button type="button" id="refreshSettingsBtn" class="btn-refresh-settings">
+        تحديث الإعدادات من الخادم
+      </button>
+    </div>
   </header>
 
   <main class="app-container">
@@ -397,23 +408,35 @@
             تفريغ الحقول
           </button>
           <button type="submit" id="submitViolationBtn" class="btn-primary">
-            التحقق من بيانات النموذج والوسائط
+            حفظ وإرسال المخالفة
           </button>
         </div>
 
       </form>
     </section>
 
-    <!-- ==================== لوحة الإرسالات المحلية (تُربط في المرحلة 6) ==================== -->
+    <!-- ==================== لوحة الإرسالات المحفوظة محلياً ==================== -->
     <section id="localQueuePanel" class="hidden-panel">
       <div class="form-section-card">
         <div class="section-header">
           <span class="section-number">≡</span>
           <h2 class="section-title">سجل الإرسالات المحفوظة محلياً على هذا الجهاز</h2>
         </div>
-        <div id="localQueueContainer" class="empty-queue-box">
-          لا توجد مخالفات محفوظة محلياً حالياً. سيتم تفعيل التخزين المحلي أوفلاين في المرحلة السادسة.
+
+        <div class="queue-toolbar">
+          <span style="font-size:0.9rem; font-weight:700; color:var(--primary-navy);">
+            إدارة المخالفات المعلقة والمرسلة
+          </span>
+          <button type="button" id="retryAllQueueBtn" class="btn-outline">
+            إرسال / إعادة المحاولة للمعلقات
+          </button>
         </div>
+
+        <div class="queue-note-box">
+          تُحفظ جميع المخالفات والصور محلياً على جهازك أولاً ولا تُحذف إلا بعد تأكيد الخادم لحفظها وإصدار الرقم التسلسلي. عند عودة الإنترنت أثناء فتح التطبيق تتم إعادة المحاولة تلقائياً، أو يمكنك الضغط على زر إعادة المحاولة يدوياً في أي وقت.
+        </div>
+
+        <div id="localQueueContainer" class="queue-list"></div>
       </div>
     </section>
 
@@ -434,6 +457,7 @@
   </div>
 
   <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
   <script src="js/media.js"></script>
   <script src="js/app.js"></script>
 </body>
