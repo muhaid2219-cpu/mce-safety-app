@@ -1,35 +1,68 @@
 /**
  * js/app.js
- * منطق واجهة المهندسين: جلب الإعدادات، الاختيار الذكي، الملء التلقائي، وربط الوسائط
+ * منطق واجهة المهندسين: PWA، التخزين المحلي أوفلاين (IndexedDB)، الطابور، والملء التلقائي
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
 (function () {
   'use strict';
 
-  const SETTINGS_CACHE_KEY = 'MCE_PUBLIC_SETTINGS_CACHE_V1';
+  const SETTINGS_LS_FALLBACK_KEY = 'MCE_PUBLIC_SETTINGS_CACHE_V1';
 
   window.APP_STATE = {
     settings: null,
-    isLoadingSettings: false
+    isLoadingSettings: false,
+    deferredInstallPrompt: null
   };
 
   document.addEventListener('DOMContentLoaded', initApp);
 
   function initApp() {
+    registerServiceWorker();
+    bindPwaInstallPrompt();
     bindConnectionMonitor();
     bindTabs();
     bindAutoExpandTextareas();
     bindDynamicFieldListeners();
     bindViolationPicker();
     bindFormActions();
+    bindQueueActions();
     setDefaultDateTime();
 
-    const cached = readCachedSettings();
-    if (cached) {
-      applySettingsToUI(cached);
+    loadInitialSettings();
+    refreshQueueUI();
+  }
+
+  /* ==================== تسجيل Service Worker وتثبيت التطبيق ==================== */
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js', { scope: './' })
+        .catch(function (err) {
+          console.warn('SW registration note:', err);
+        });
+    });
+  }
+
+  function bindPwaInstallPrompt() {
+    const installBtn = document.getElementById('installPwaBtn');
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.APP_STATE.deferredInstallPrompt = e;
+      if (installBtn) installBtn.style.display = 'inline-block';
+    });
+
+    if (installBtn) {
+      installBtn.addEventListener('click', function () {
+        const promptEvt = window.APP_STATE.deferredInstallPrompt;
+        if (!promptEvt) return;
+        promptEvt.prompt();
+        promptEvt.userChoice.finally(function () {
+          window.APP_STATE.deferredInstallPrompt = null;
+          installBtn.style.display = 'none';
+        });
+      });
     }
-    fetchAndApplySettings(false);
   }
 
   /* ==================== مراقبة حالة الاتصال ==================== */
@@ -60,13 +93,21 @@
     tabBtns.forEach(function (btn) {
       btn.addEventListener('click', function () {
         const targetId = btn.getAttribute('data-target');
-        tabBtns.forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-
-        document.getElementById('newViolationPanel').classList.toggle('hidden-panel', targetId !== 'newViolationPanel');
-        document.getElementById('localQueuePanel').classList.toggle('hidden-panel', targetId !== 'localQueuePanel');
+        switchToTab(targetId);
       });
     });
+  }
+
+  function switchToTab(targetId) {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-target') === targetId);
+    });
+    document.getElementById('newViolationPanel').classList.toggle('hidden-panel', targetId !== 'newViolationPanel');
+    document.getElementById('localQueuePanel').classList.toggle('hidden-panel', targetId !== 'localQueuePanel');
+    if (targetId === 'localQueuePanel') {
+      refreshQueueUI();
+    }
   }
 
   /* ==================== توسيع مربعات النص تلقائياً ==================== */
@@ -85,12 +126,37 @@
     el.style.height = Math.max(82, el.scrollHeight) + 'px';
   }
 
-  /* ==================== جلب الإعدادات الديناميكية ==================== */
+  /* ==================== تحميل وتخزين الإعدادات (IndexedDB + الخادم) ==================== */
+  function loadInitialSettings() {
+    if (window.LocalDB && typeof window.LocalDB.getSettingsCache === 'function') {
+      window.LocalDB.getSettingsCache()
+        .then(function (cachedDb) {
+          if (cachedDb) {
+            applySettingsToUI(cachedDb);
+          } else {
+            const lsCached = readLsFallbackSettings();
+            if (lsCached) applySettingsToUI(lsCached);
+          }
+        })
+        .catch(function () {
+          const lsCached = readLsFallbackSettings();
+          if (lsCached) applySettingsToUI(lsCached);
+        })
+        .finally(function () {
+          fetchAndApplySettings(false);
+        });
+    } else {
+      const lsCached = readLsFallbackSettings();
+      if (lsCached) applySettingsToUI(lsCached);
+      fetchAndApplySettings(false);
+    }
+  }
+
   function fetchAndApplySettings(isManualRefresh) {
     if (window.APP_STATE.isLoadingSettings) return;
     if (!navigator.onLine) {
       if (isManualRefresh) {
-        showGlobalAlert('warning', 'لا يوجد اتصال بالإنترنت حالياً. يتم استخدام آخر إعدادات محفوظة.');
+        showGlobalAlert('warning', 'أنت غير متصل بالإنترنت حالياً؛ يتم العمل بآخر نسخة محفوظة من الإعدادات.');
       }
       return;
     }
@@ -118,10 +184,10 @@
         if (!json || !json.success || !json.data) {
           throw new Error((json && json.error) || 'استجابة غير صالحة من الخادم');
         }
-        saveCachedSettings(json.data);
+        persistSettingsLocally(json.data);
         applySettingsToUI(json.data);
         if (isManualRefresh) {
-          showGlobalAlert('success', 'تم تحديث قوائم المقاولين والمهندسين والمخالفات والشعارات من الخادم بنجاح.');
+          showGlobalAlert('success', 'تم تحديث وحفظ قوائم المقاولين والمهندسين والمخالفات والشعارات للعمل أوفلاين بنجاح.');
         }
       })
       .catch(function (err) {
@@ -129,7 +195,7 @@
         if (!window.APP_STATE.settings) {
           showGlobalAlert('error', 'تعذر تحميل الإعدادات من الخادم: ' + err.message);
         } else if (isManualRefresh) {
-          showGlobalAlert('warning', 'تعذر تحديث الإعدادات من الخادم حالياً؛ تم الإبقاء على النسخة المحفوظة.');
+          showGlobalAlert('warning', 'تعذر الاتصال بالخادم حالياً؛ تم الإبقاء على الإعدادات المحفوظة محلياً.');
         }
       })
       .finally(function () {
@@ -139,6 +205,24 @@
           refreshBtn.textContent = 'تحديث الإعدادات من الخادم';
         }
       });
+  }
+
+  function persistSettingsLocally(data) {
+    if (window.LocalDB && typeof window.LocalDB.saveSettingsCache === 'function') {
+      window.LocalDB.saveSettingsCache(data).catch(function () {});
+    }
+    try {
+      localStorage.setItem(SETTINGS_LS_FALLBACK_KEY, JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  function readLsFallbackSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_LS_FALLBACK_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   function applySettingsToUI(settings) {
@@ -473,7 +557,7 @@
     }
   }
 
-  /* ==================== أزرار النموذج والتحقق ==================== */
+  /* ==================== أزرار النموذج، الحفظ المحلي، والإرسال ==================== */
   function bindFormActions() {
     const refreshBtn = document.getElementById('refreshSettingsBtn');
     if (refreshBtn) {
@@ -513,26 +597,196 @@
       return;
     }
 
-    const basePayload = collectFormPayload();
-
-    if (window.MediaModule && typeof window.MediaModule.getMediaPayload === 'function') {
-      window.MediaModule.getMediaPayload().then(function (mediaPayload) {
-        if (typeof window.onViolationFormValidated === 'function') {
-          window.onViolationFormValidated(basePayload, mediaPayload);
-          return;
-        }
-        const photoCount = (mediaPayload && mediaPayload.photos) ? mediaPayload.photos.length : 0;
-        showGlobalAlert('success', 'تم التحقق من كامل النموذج والصور (' + photoCount + ' صور مضغوطة) والتوقيعات بنجاح! جاهز لمرحلة التخزين أوفلاين والإرسال.');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-      return;
+    const submitBtn = document.getElementById('submitViolationBtn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'جارٍ الحفظ...';
     }
 
-    if (typeof window.onViolationFormValidated === 'function') {
-      window.onViolationFormValidated(basePayload, null);
+    const basePayload = collectFormPayload();
+    const mediaPromise = (window.MediaModule && typeof window.MediaModule.getMediaPayload === 'function')
+      ? window.MediaModule.getMediaPayload()
+      : Promise.resolve(null);
+
+    mediaPromise
+      .then(function (mediaPayload) {
+        if (window.SyncModule && typeof window.SyncModule.enqueueAndSend === 'function') {
+          return window.SyncModule.enqueueAndSend(basePayload, mediaPayload);
+        }
+
+        // في المرحلة السادسة: حفظ كامل المخالفة في IndexedDB محلياً بحالة مناسبة للاتصال
+        const initialStatus = navigator.onLine
+          ? window.LocalDB.STATUS.PENDING
+          : window.LocalDB.STATUS.SAVED_LOCALLY;
+
+        return window.LocalDB.saveSubmission(basePayload, mediaPayload, initialStatus)
+          .then(function (savedRecord) {
+            resetFormFields();
+            refreshQueueUI();
+            const msg = navigator.onLine
+              ? 'تم حفظ المخالفة محلياً برقم UUID: ' + savedRecord.uuid.slice(0, 8) + '... (الحالة: ' + savedRecord.status + '). سيتم تفعيل الإرسال الفعلي للخادم في المرحلة القادمة.'
+              : 'أنت غير متصل بالإنترنت: تم حفظ المخالفة والصور والتوقيعات بأمان على جهازك (' + savedRecord.status + '). لن تُفقد البيانات.';
+            showGlobalAlert('success', msg);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+      })
+      .catch(function (err) {
+        console.error('Submission error:', err);
+        showGlobalAlert('error', 'تعذر حفظ المخالفة محلياً: ' + (err.message || 'خطأ غير متوقع'));
+      })
+      .finally(function () {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'حفظ وإرسال المخالفة';
+        }
+      });
+  }
+
+  /* ==================== واجهة طابور الإرسالات المحلية ==================== */
+  function bindQueueActions() {
+    const retryAllBtn = document.getElementById('retryAllQueueBtn');
+    if (retryAllBtn) {
+      retryAllBtn.addEventListener('click', function () {
+        if (window.SyncModule && typeof window.SyncModule.syncPendingQueue === 'function') {
+          window.SyncModule.syncPendingQueue(true);
+        } else {
+          showGlobalAlert('info', 'تم حفظ المخالفات بأمان في قاعدة البيانات المحلية؛ سيتم ربط الإرسال الفعلي للخادم في المرحلة السابعة.');
+        }
+      });
     }
   }
 
+  function refreshQueueUI() {
+    if (!window.LocalDB || typeof window.LocalDB.getAllSubmissions !== 'function') return;
+
+    window.LocalDB.getAllSubmissions()
+      .then(function (records) {
+        const badge = document.getElementById('queueCountBadge');
+        const pendingCount = records.filter(function (r) {
+          return r.status !== window.LocalDB.STATUS.SENT_SUCCESS;
+        }).length;
+        if (badge) {
+          badge.textContent = String(pendingCount > 0 ? pendingCount : records.length);
+        }
+
+        const container = document.getElementById('localQueueContainer');
+        if (!container) return;
+
+        container.innerHTML = '';
+        if (records.length === 0) {
+          const emptyDiv = document.createElement('div');
+          emptyDiv.className = 'empty-queue-box';
+          emptyDiv.textContent = 'لا توجد مخالفات محفوظة محلياً على هذا الجهاز حالياً.';
+          container.appendChild(emptyDiv);
+          return;
+        }
+
+        records.forEach(function (rec) {
+          container.appendChild(buildQueueCard(rec));
+        });
+      })
+      .catch(function (err) {
+        console.warn('Queue render error:', err);
+      });
+  }
+
+  function buildQueueCard(rec) {
+    const card = document.createElement('div');
+    card.className = 'queue-card';
+
+    const top = document.createElement('div');
+    top.className = 'queue-card-top';
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'queue-status-badge ' + getStatusCssClass(rec.status);
+    statusBadge.textContent = rec.status;
+    top.appendChild(statusBadge);
+
+    if (rec.serialNumber) {
+      const serialPill = document.createElement('span');
+      serialPill.className = 'queue-serial-pill';
+      serialPill.textContent = rec.serialNumber;
+      top.appendChild(serialPill);
+    }
+
+    const details = document.createElement('div');
+    details.className = 'queue-card-details';
+    const d = rec.formData || {};
+    const photosCount = (rec.media && rec.media.photos) ? rec.media.photos.length : 0;
+
+    details.innerHTML =
+      '<div><strong>المقاول:</strong> ' + escapeHtml(d.contractorName || '-') + '</div>' +
+      '<div><strong>الدائرة / الموقع:</strong> ' + escapeHtml((d.district || '') + ' - ' + (d.location || '')) + '</div>' +
+      '<div><strong>التاريخ والوقت:</strong> ' + escapeHtml((d.violationDate || '') + ' ' + (d.violationTime || '')) + '</div>' +
+      '<div><strong>المخالف / الصور:</strong> ' + escapeHtml((d.violationNumber || '-') + ' (' + photosCount + ' صور)') + '</div>';
+
+    card.appendChild(top);
+    card.appendChild(details);
+
+    if (rec.lastError) {
+      const errBox = document.createElement('div');
+      errBox.className = 'queue-card-error';
+      errBox.textContent = 'ملاحظة: ' + rec.lastError;
+      card.appendChild(errBox);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'queue-card-actions';
+
+    const uuidSpan = document.createElement('span');
+    uuidSpan.className = 'queue-uuid-label';
+    uuidSpan.textContent = 'UUID: ' + rec.uuid;
+    actions.appendChild(uuidSpan);
+
+    if (rec.status === window.LocalDB.STATUS.SENT_SUCCESS && rec.serialNumber) {
+      const cleanBtn = document.createElement('button');
+      cleanBtn.type = 'button';
+      cleanBtn.className = 'photo-remove-btn';
+      cleanBtn.textContent = 'إزالة من السجل المحلي';
+      cleanBtn.addEventListener('click', function () {
+        window.LocalDB.deleteConfirmedSubmission(rec.uuid).then(refreshQueueUI);
+      });
+      actions.appendChild(cleanBtn);
+    } else {
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.className = 'btn-outline';
+      retryBtn.textContent = rec.status === window.LocalDB.STATUS.SENDING ? 'جارٍ الإرسال...' : 'إرسال / إعادة المحاولة';
+      retryBtn.disabled = rec.status === window.LocalDB.STATUS.SENDING;
+      retryBtn.addEventListener('click', function () {
+        if (window.SyncModule && typeof window.SyncModule.sendSubmissionByUuid === 'function') {
+          window.SyncModule.sendSubmissionByUuid(rec.uuid);
+        } else {
+          showGlobalAlert('info', 'المخالفة محفوظة محلياً بأمان؛ سيتم تفعيل الإرسال الفعلي للخادم في المرحلة السابعة.');
+          switchToTab('newViolationPanel');
+        }
+      });
+      actions.appendChild(retryBtn);
+    }
+
+    card.appendChild(actions);
+    return card;
+  }
+
+  function getStatusCssClass(status) {
+    const S = window.LocalDB ? window.LocalDB.STATUS : {};
+    if (status === S.SAVED_LOCALLY) return 'status-saved';
+    if (status === S.PENDING) return 'status-pending';
+    if (status === S.SENDING) return 'status-sending';
+    if (status === S.SENT_SUCCESS) return 'status-success';
+    if (status === S.FAILED_RETRY) return 'status-failed';
+    return 'status-saved';
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ==================== التحقق من النموذج ==================== */
   function validateViolationForm() {
     let firstErrorEl = null;
     let valid = true;
@@ -715,24 +969,11 @@
     if (el) el.textContent = text;
   }
 
-  function saveCachedSettings(data) {
-    try {
-      localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(data));
-    } catch (e) {}
-  }
-
-  function readCachedSettings() {
-    try {
-      const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
   window.APP_HELPERS = {
     resetFormFields: resetFormFields,
     showGlobalAlert: showGlobalAlert,
-    hideGlobalAlert: hideGlobalAlert
+    hideGlobalAlert: hideGlobalAlert,
+    refreshQueueUI: refreshQueueUI,
+    switchToTab: switchToTab
   };
 })();
