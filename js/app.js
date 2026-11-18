@@ -1,6 +1,6 @@
 /**
  * js/app.js
- * منطق واجهة المهندسين: جلب الإعدادات، الاختيار الذكي للمخالفات، الملء التلقائي، والتحقق
+ * منطق واجهة المهندسين: جلب الإعدادات، الاختيار الذكي، الملء التلقائي، وربط الوسائط
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
@@ -185,8 +185,12 @@
     const minP = settings.minPhotos || 1;
     const maxP = settings.maxPhotos || 5;
     const hintEl = document.getElementById('photosLimitHint');
-    if (hintEl && hintEl.textContent.indexOf('المرحلة التالية') !== -1) {
-      hintEl.textContent = 'الحد المطلوب للصور: من ' + minP + ' إلى ' + maxP + ' صور (سيتم تفعيل التصوير والضغط في المرحلة التالية).';
+    if (hintEl) {
+      hintEl.textContent = 'مطلوب إرفاق من ' + minP + ' إلى ' + maxP + ' صور واضحة للمخالفة (يتم ضغط الصور تلقائياً قبل الرفع).';
+    }
+    const countBadge = document.getElementById('photosCountBadge');
+    if (countBadge && countBadge.textContent.indexOf('0 /') === 0) {
+      countBadge.textContent = '0 / ' + maxP + ' صور';
     }
   }
 
@@ -433,6 +437,9 @@
           if (reasonInput) reasonInput.removeAttribute('required');
           clearFieldError('refusalReason');
         }
+        if (window.MediaModule && typeof window.MediaModule.setContractorSignatureDisabled === 'function') {
+          window.MediaModule.setContractorSignatureDisabled(refusedCheckbox.checked);
+        }
       });
     }
 
@@ -491,22 +498,39 @@
     hideGlobalAlert();
 
     const validation = validateViolationForm();
-    if (!validation.valid) {
-      showGlobalAlert('error', 'يرجى استكمال الحقول الإلزامية المحددة باللون الأحمر قبل المتابعة.');
-      if (validation.firstErrorEl) {
-        validation.firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        validation.firstErrorEl.focus();
+    let mediaValidation = { valid: true, firstErrorEl: null };
+    if (window.MediaModule && typeof window.MediaModule.validateMedia === 'function') {
+      mediaValidation = window.MediaModule.validateMedia();
+    }
+
+    if (!validation.valid || !mediaValidation.valid) {
+      showGlobalAlert('error', 'يرجى استكمال جميع الحقول والصور والتوقيعات الإلزامية المحددة باللون الأحمر.');
+      const targetEl = validation.firstErrorEl || mediaValidation.firstErrorEl;
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof targetEl.focus === 'function') targetEl.focus();
       }
       return;
     }
 
-    if (typeof window.onViolationFormValidated === 'function') {
-      window.onViolationFormValidated(collectFormPayload());
+    const basePayload = collectFormPayload();
+
+    if (window.MediaModule && typeof window.MediaModule.getMediaPayload === 'function') {
+      window.MediaModule.getMediaPayload().then(function (mediaPayload) {
+        if (typeof window.onViolationFormValidated === 'function') {
+          window.onViolationFormValidated(basePayload, mediaPayload);
+          return;
+        }
+        const photoCount = (mediaPayload && mediaPayload.photos) ? mediaPayload.photos.length : 0;
+        showGlobalAlert('success', 'تم التحقق من كامل النموذج والصور (' + photoCount + ' صور مضغوطة) والتوقيعات بنجاح! جاهز لمرحلة التخزين أوفلاين والإرسال.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
       return;
     }
 
-    showGlobalAlert('success', 'تم التحقق من جميع بيانات النموذج بنجاح! النموذج جاهز لربط الصور والتوقيعات في المرحلة القادمة.');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window.onViolationFormValidated === 'function') {
+      window.onViolationFormValidated(basePayload, null);
+    }
   }
 
   function validateViolationForm() {
@@ -627,6 +651,10 @@
       el.style.height = '82px';
     });
 
+    if (window.MediaModule && typeof window.MediaModule.resetAllMedia === 'function') {
+      window.MediaModule.resetAllMedia();
+    }
+
     setDefaultDateTime();
     hideGlobalAlert();
   }
@@ -701,4 +729,10 @@
       return null;
     }
   }
+
+  window.APP_HELPERS = {
+    resetFormFields: resetFormFields,
+    showGlobalAlert: showGlobalAlert,
+    hideGlobalAlert: hideGlobalAlert
+  };
 })();
