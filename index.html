@@ -226,23 +226,43 @@
           </div>
         </div>
 
-        <!-- القسم 4: صور المخالفة (يُفعّل بالكامل في المرحلة الخامسة) -->
+        <!-- القسم 4: صور المخالفة (الكاميرا + المعرض + الضغط + المعاينة) -->
         <div class="form-section-card">
           <div class="section-header">
             <span class="section-number">4</span>
-            <h2 class="section-title">صور المخالفة الميدانية (إلزامي من 1 إلى 5 صور)</h2>
+            <h2 class="section-title">صور المخالفة الميدانية <span class="required-star">*</span></h2>
           </div>
 
-          <div id="photosSectionContainer" class="media-placeholder-box">
-            <p id="photosLimitHint" style="margin:0; font-weight:600; color:var(--primary-navy);">
-              سيتم تفعيل التصوير المباشر بالكاميرا واختيار الصور من المعرض وضغطها تلقائياً في المرحلة التالية.
+          <div id="photosSectionContainer" class="media-upload-box">
+            <div class="media-toolbar">
+              <div class="media-actions-row">
+                <button type="button" id="btnCaptureCamera" class="btn-camera">
+                  التقاط صورة بالكاميرا
+                </button>
+                <button type="button" id="btnPickGallery" class="btn-outline">
+                  اختيار صور من المعرض
+                </button>
+              </div>
+              <span id="photosCountBadge" class="photos-count-badge">0 / 5 صور</span>
+            </div>
+
+            <p id="photosLimitHint" style="margin:10px 0 0; font-size:0.84rem; color:var(--text-muted);">
+              مطلوب إرفاق من 1 إلى 5 صور واضحة للمخالفة (يتم ضغط الصور تلقائياً قبل الرفع).
             </p>
-            <div id="photosPreviewGrid" style="margin-top:12px;"></div>
+
+            <input type="file" id="photoCameraInput" accept="image/*" capture="environment" style="display:none;" />
+            <input type="file" id="photoGalleryInput" accept="image/*" multiple style="display:none;" />
+
+            <div id="photosProcessingMsg" class="photos-processing-msg">
+              جارٍ ضغط وتجهيز الصور...
+            </div>
+
+            <div id="photosPreviewGrid" class="photos-preview-grid"></div>
             <span class="field-error" id="err-photos"></span>
           </div>
         </div>
 
-        <!-- القسم 5: معلومات المهندس الاستشاري -->
+        <!-- القسم 5: معلومات المهندس الاستشاري وتوقيعه -->
         <div class="form-section-card">
           <div class="section-header">
             <span class="section-number">5</span>
@@ -272,8 +292,26 @@
                 توقيع الاستشاري <span class="required-star">*</span>
               </label>
               <div id="consultantSignatureBox" class="signature-box">
-                <div id="consultantSignatureSlot" class="signature-canvas-slot">
-                  لوحة رسم التوقيع ورفع صورة التوقيع ستُفعّل في المرحلة التالية.
+                <div class="sig-mode-header">
+                  <div class="sig-mode-tabs">
+                    <button type="button" id="consultantSigTabDraw" class="sig-tab-btn active">رسم التوقيع</button>
+                    <button type="button" id="consultantSigTabUpload" class="sig-tab-btn">رفع صورة توقيع</button>
+                  </div>
+                  <button type="button" id="consultantSigClearBtn" class="sig-clear-btn">مسح التوقيع</button>
+                </div>
+
+                <div id="consultantSigDrawArea">
+                  <div class="sig-canvas-wrap">
+                    <canvas id="consultantSigCanvas" class="sig-canvas"></canvas>
+                  </div>
+                  <div class="sig-canvas-hint">وقّع بإصبعك على شاشة الجوال أو بالماوس داخل المربع أعلاه.</div>
+                </div>
+
+                <div id="consultantSigUploadArea" class="sig-upload-area">
+                  <button type="button" id="consultantSigPickFileBtn" class="btn-outline">اختر صورة التوقيع من الجهاز</button>
+                  <input type="file" id="consultantSigFileInput" accept="image/*" style="display:none;" />
+                  <p id="consultantSigUploadEmpty" style="margin:10px 0 0; font-size:0.84rem; color:var(--text-muted);">لم يتم اختيار صورة توقيع بعد.</p>
+                  <img id="consultantSigUploadPreview" class="sig-upload-preview" alt="معاينة توقيع الاستشاري" />
                 </div>
               </div>
               <span class="field-error" id="err-consultantSignature"></span>
@@ -281,7 +319,7 @@
           </div>
         </div>
 
-        <!-- القسم 6: معلومات ممثل المقاول والامتناع عن التوقيع -->
+        <!-- القسم 6: معلومات ممثل المقاول وتوقيعه والامتناع -->
         <div class="form-section-card">
           <div class="section-header">
             <span class="section-number">6</span>
@@ -310,8 +348,26 @@
                 توقيع ممثل المقاول
               </label>
               <div id="contractorSignatureBox" class="signature-box">
-                <div id="contractorSignatureSlot" class="signature-canvas-slot">
-                  لوحة رسم التوقيع ورفع صورة التوقيع ستُفعّل في المرحلة التالية.
+                <div class="sig-mode-header">
+                  <div class="sig-mode-tabs">
+                    <button type="button" id="contractorSigTabDraw" class="sig-tab-btn active">رسم التوقيع</button>
+                    <button type="button" id="contractorSigTabUpload" class="sig-tab-btn">رفع صورة توقيع</button>
+                  </div>
+                  <button type="button" id="contractorSigClearBtn" class="sig-clear-btn">مسح التوقيع</button>
+                </div>
+
+                <div id="contractorSigDrawArea">
+                  <div class="sig-canvas-wrap">
+                    <canvas id="contractorSigCanvas" class="sig-canvas"></canvas>
+                  </div>
+                  <div class="sig-canvas-hint">وقّع بإصبعك على شاشة الجوال أو بالماوس داخل المربع أعلاه.</div>
+                </div>
+
+                <div id="contractorSigUploadArea" class="sig-upload-area">
+                  <button type="button" id="contractorSigPickFileBtn" class="btn-outline">اختر صورة التوقيع من الجهاز</button>
+                  <input type="file" id="contractorSigFileInput" accept="image/*" style="display:none;" />
+                  <p id="contractorSigUploadEmpty" style="margin:10px 0 0; font-size:0.84rem; color:var(--text-muted);">لم يتم اختيار صورة توقيع بعد.</p>
+                  <img id="contractorSigUploadPreview" class="sig-upload-preview" alt="معاينة توقيع ممثل المقاول" />
                 </div>
               </div>
               <span class="field-error" id="err-contractorSignature"></span>
@@ -341,7 +397,7 @@
             تفريغ الحقول
           </button>
           <button type="submit" id="submitViolationBtn" class="btn-primary">
-            التحقق من بيانات النموذج
+            التحقق من بيانات النموذج والوسائط
           </button>
         </div>
 
@@ -378,6 +434,7 @@
   </div>
 
   <script src="js/config.js"></script>
+  <script src="js/media.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
