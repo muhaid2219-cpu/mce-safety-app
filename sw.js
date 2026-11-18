@@ -4,7 +4,7 @@
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
-const CACHE_NAME = 'mce-safety-pwa-v1';
+const CACHE_NAME = 'mce-safety-pwa-v2';
 
 const APP_SHELL_ASSETS = [
   './',
@@ -14,6 +14,7 @@ const APP_SHELL_ASSETS = [
   './js/config.js',
   './js/db.js',
   './js/media.js',
+  './js/sync.js',
   './js/app.js',
   './assets/icon.svg'
 ];
@@ -48,7 +49,6 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   const req = event.request;
 
-  // لا نعترض طلبات POST أو طلبات خادم Google Apps Script
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
@@ -59,12 +59,10 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // فقط لملفات نفس نطاق التطبيق على GitHub Pages
   if (url.origin !== self.location.origin) {
     return;
   }
 
-  // استراتيجية: الرد الفوري من الكاش مع تحديث صامت في الخلفية عند وجود إنترنت
   event.respondWith(
     caches.open(CACHE_NAME).then(function (cache) {
       return cache.match(req, { ignoreSearch: true }).then(function (cachedResp) {
