@@ -64,6 +64,13 @@ body {
   flex-wrap: wrap;
 }
 
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -92,7 +99,8 @@ body {
   background-color: #f59e0b;
 }
 
-.btn-refresh-settings {
+.btn-refresh-settings,
+.btn-install-pwa {
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -105,8 +113,15 @@ body {
   transition: background 0.2s ease;
 }
 
-.btn-refresh-settings:hover {
-  background: rgba(255, 255, 255, 0.24);
+.btn-install-pwa {
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+  display: none;
+}
+
+.btn-refresh-settings:hover,
+.btn-install-pwa:hover {
+  opacity: 0.92;
 }
 
 /* ---------------- الحاوية الرئيسية ---------------- */
@@ -605,7 +620,7 @@ textarea.form-control {
   border-color: #7dd3fc;
 }
 
-/* ---------------- مناطق الصور والتوقيعات (المرحلة الخامسة) ---------------- */
+/* ---------------- مناطق الصور والتوقيعات ---------------- */
 .media-upload-box {
   border: 2px dashed #cbd5e1;
   border-radius: var(--radius-md);
@@ -899,7 +914,7 @@ textarea.form-control {
   cursor: pointer;
 }
 
-/* ---------------- تبويب الطابور المحلي ---------------- */
+/* ---------------- تبويب الطابور المحلي والعمل دون اتصال ---------------- */
 .hidden-panel {
   display: none;
 }
@@ -908,6 +923,127 @@ textarea.form-control {
   text-align: center;
   padding: 40px 20px;
   color: var(--text-muted);
+}
+
+.queue-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.queue-note-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.queue-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.queue-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.queue-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.queue-status-badge.status-saved {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.queue-status-badge.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.queue-status-badge.status-sending {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.queue-status-badge.status-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.queue-status-badge.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.queue-serial-pill {
+  background: var(--primary-navy);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  direction: ltr;
+}
+
+.queue-card-details {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+}
+
+.queue-card-error {
+  font-size: 0.82rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.queue-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.queue-uuid-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-family: monospace;
 }
 
 /* ---------------- الاستجابة للجوال ---------------- */
@@ -936,7 +1072,8 @@ textarea.form-control {
     padding: 4px 10px;
   }
 
-  .form-grid {
+  .form-grid,
+  .queue-card-details {
     grid-template-columns: 1fr;
   }
 
