@@ -1,6 +1,6 @@
 /**
  * js/app.js
- * منطق واجهة المهندسين: جلب الإعدادات الديناميكية، الملء التلقائي، والتحقق من المدخلات
+ * منطق واجهة المهندسين: جلب الإعدادات، الاختيار الذكي للمخالفات، الملء التلقائي، والتحقق
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
@@ -21,10 +21,10 @@
     bindTabs();
     bindAutoExpandTextareas();
     bindDynamicFieldListeners();
+    bindViolationPicker();
     bindFormActions();
     setDefaultDateTime();
 
-    // تحميل سريع من الذاكرة المؤقتة إن وجد ثم التحديث من الخادم
     const cached = readCachedSettings();
     if (cached) {
       applySettingsToUI(cached);
@@ -144,7 +144,6 @@
   function applySettingsToUI(settings) {
     window.APP_STATE.settings = settings;
 
-    // 1. النصوص والشعارات في الترويسة
     setText('headerCompanyName', settings.companyName || window.APP_CONFIG.DEFAULTS.COMPANY_NAME);
     setText('headerConsultingName', settings.consultingCompanyName || window.APP_CONFIG.DEFAULTS.CONSULTING_COMPANY_NAME);
     setText('headerFormTitle', settings.formTitle || window.APP_CONFIG.DEFAULTS.FORM_TITLE);
@@ -157,7 +156,6 @@
     applyLogo('companyLogoImg', 'companyLogoPlaceholder', settings.companyLogoDataUri);
     applyLogo('consultingLogoImg', 'consultingLogoPlaceholder', settings.consultingLogoDataUri);
 
-    // 2. الدوائر
     populateSelect(
       'district',
       settings.departments || [],
@@ -166,7 +164,6 @@
       function (d) { return d.districtName; }
     );
 
-    // 3. المقاولون
     populateSelect(
       'contractorId',
       settings.contractors || [],
@@ -175,16 +172,6 @@
       function (c) { return c.name; }
     );
 
-    // 4. أنواع المخالفات
-    populateSelect(
-      'violationTypeId',
-      settings.violationTypes || [],
-      '-- اختر وصف المخالفة --',
-      function (v) { return v.id; },
-      function (v) { return (v.violationNumber ? v.violationNumber + ' — ' : '') + v.description; }
-    );
-
-    // 5. المهندسون الاستشاريون
     populateSelect(
       'consultantId',
       settings.engineers || [],
@@ -193,7 +180,8 @@
       function (e) { return e.name; }
     );
 
-    // 6. تلميح حدود الصور
+    renderViolationPickerList('');
+
     const minP = settings.minPhotos || 1;
     const maxP = settings.maxPhotos || 5;
     const hintEl = document.getElementById('photosLimitHint');
@@ -240,9 +228,165 @@
     }
   }
 
+  /* ==================== نافذة الاختيار الذكي لوصف المخالفة ==================== */
+  function bindViolationPicker() {
+    const triggerBtn = document.getElementById('violationPickerTrigger');
+    const modal = document.getElementById('violationPickerModal');
+    const closeBtn = document.getElementById('violationPickerClose');
+    const searchInput = document.getElementById('violationPickerSearch');
+
+    if (!triggerBtn || !modal) return;
+
+    triggerBtn.addEventListener('click', openViolationPicker);
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeViolationPicker);
+    }
+
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) {
+        closeViolationPicker();
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('open')) {
+        closeViolationPicker();
+      }
+    });
+
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        renderViolationPickerList(searchInput.value);
+      });
+    }
+  }
+
+  function openViolationPicker() {
+    const modal = document.getElementById('violationPickerModal');
+    const triggerBtn = document.getElementById('violationPickerTrigger');
+    const searchInput = document.getElementById('violationPickerSearch');
+    if (!modal) return;
+
+    if (searchInput) searchInput.value = '';
+    renderViolationPickerList('');
+
+    modal.classList.add('open');
+    if (triggerBtn) triggerBtn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+
+    if (searchInput && window.innerWidth >= 768) {
+      setTimeout(function () { searchInput.focus(); }, 60);
+    }
+  }
+
+  function closeViolationPicker() {
+    const modal = document.getElementById('violationPickerModal');
+    const triggerBtn = document.getElementById('violationPickerTrigger');
+    if (!modal) return;
+
+    modal.classList.remove('open');
+    if (triggerBtn) triggerBtn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  function renderViolationPickerList(queryText) {
+    const listEl = document.getElementById('violationPickerList');
+    if (!listEl) return;
+
+    const allItems = (window.APP_STATE.settings && window.APP_STATE.settings.violationTypes) || [];
+    const selectedId = document.getElementById('violationTypeId').value;
+    const normQuery = normalizeArabicForSearch(queryText);
+
+    const filtered = allItems.filter(function (item) {
+      if (!normQuery) return true;
+      const haystack = normalizeArabicForSearch(
+        (item.violationNumber || '') + ' ' + (item.description || '') + ' ' + (item.classification || '')
+      );
+      return haystack.indexOf(normQuery) !== -1;
+    });
+
+    listEl.innerHTML = '';
+
+    if (filtered.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.style.textAlign = 'center';
+      emptyMsg.style.padding = '24px 12px';
+      emptyMsg.style.color = '#64748b';
+      emptyMsg.textContent = allItems.length === 0
+        ? 'جارٍ تحميل قائمة المخالفات...'
+        : 'لا توجد مخالفة مطابقة لعبارة البحث.';
+      listEl.appendChild(emptyMsg);
+      return;
+    }
+
+    filtered.forEach(function (item) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'picker-option-card' + (item.id === selectedId ? ' selected' : '');
+
+      const meta = document.createElement('div');
+      meta.className = 'picker-option-meta';
+
+      const codeSpan = document.createElement('span');
+      codeSpan.className = 'picker-option-code';
+      codeSpan.textContent = item.violationNumber || '-';
+
+      const badgeSpan = document.createElement('span');
+      const clsUpper = String(item.classification || '').toUpperCase();
+      badgeSpan.className = 'class-badge small' + (['A', 'B', 'C'].indexOf(clsUpper) !== -1 ? ' class-' + clsUpper : '');
+      badgeSpan.textContent = item.classification ? 'تصنيف ' + item.classification : '-';
+
+      meta.appendChild(codeSpan);
+      meta.appendChild(badgeSpan);
+
+      const descDiv = document.createElement('div');
+      descDiv.className = 'picker-option-desc';
+      descDiv.textContent = item.description || '';
+
+      card.appendChild(meta);
+      card.appendChild(descDiv);
+
+      card.addEventListener('click', function () {
+        selectViolationType(item);
+      });
+
+      listEl.appendChild(card);
+    });
+  }
+
+  function selectViolationType(item) {
+    const hiddenInput = document.getElementById('violationTypeId');
+    const triggerText = document.getElementById('violationPickerText');
+    const numberInput = document.getElementById('violationNumber');
+    const classInput = document.getElementById('violationClassification');
+
+    if (hiddenInput) hiddenInput.value = item.id || '';
+    if (triggerText) {
+      triggerText.textContent = item.description || '';
+      triggerText.classList.remove('is-placeholder');
+    }
+    if (numberInput) numberInput.value = item.violationNumber || '';
+    if (classInput) classInput.value = item.classification || '';
+
+    updateClassificationBadge(item.classification || '');
+    clearFieldError('violationTypeId');
+    closeViolationPicker();
+  }
+
+  function normalizeArabicForSearch(text) {
+    return String(text || '')
+      .toLowerCase()
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/ى/g, 'ي')
+      .replace(/[\u064B-\u065F]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   /* ==================== الملء التلقائي للحقول المرتبطة ==================== */
   function bindDynamicFieldListeners() {
-    // عند تغيير المقاول -> تعبئة رقم العقد + اسم ممثل السلامة
     const contractorSelect = document.getElementById('contractorId');
     if (contractorSelect) {
       contractorSelect.addEventListener('change', function () {
@@ -256,23 +400,6 @@
       });
     }
 
-    // عند تغيير المخالفة -> تعبئة رقم المخالفة + التصنيف
-    const violationSelect = document.getElementById('violationTypeId');
-    if (violationSelect) {
-      violationSelect.addEventListener('change', function () {
-        clearFieldError('violationTypeId');
-        const id = violationSelect.value;
-        const list = (window.APP_STATE.settings && window.APP_STATE.settings.violationTypes) || [];
-        const found = list.find(function (v) { return v.id === id; });
-
-        const cls = found ? (found.classification || '') : '';
-        document.getElementById('violationNumber').value = found ? (found.violationNumber || '') : '';
-        document.getElementById('violationClassification').value = cls;
-        updateClassificationBadge(cls);
-      });
-    }
-
-    // عند تغيير المهندس الاستشاري -> تعبئة الرقم الوظيفي
     const consultantSelect = document.getElementById('consultantId');
     if (consultantSelect) {
       consultantSelect.addEventListener('change', function () {
@@ -285,7 +412,6 @@
       });
     }
 
-    // عند تفعيل خيار الامتناع عن التوقيع -> جعل السبب إلزامياً
     const refusedCheckbox = document.getElementById('contractorRefusedSign');
     const refusalWrapper = document.getElementById('refusalToggleWrapper');
     if (refusalWrapper && refusedCheckbox) {
@@ -310,7 +436,6 @@
       });
     }
 
-    // إزالة رسالة الخطأ فور الكتابة في الحقول الإلزامية
     const watchedIds = [
       'district', 'location', 'violationDate', 'violationTime',
       'projectWoNumber', 'injuryStatus', 'permitIssuer', 'permitReceiver',
@@ -375,7 +500,6 @@
       return;
     }
 
-    // في المرحلة 7 سيتم ربط الإرسال الكامل مع الصور والتوقيعات والعمل دون اتصال
     if (typeof window.onViolationFormValidated === 'function') {
       window.onViolationFormValidated(collectFormPayload());
       return;
@@ -396,7 +520,7 @@
       { id: 'violationTime', msg: 'يرجى تحديد وقت المخالفة.' },
       { id: 'contractorId', msg: 'يرجى اختيار اسم المقاول.' },
       { id: 'projectWoNumber', msg: 'يرجى إدخال رقم المشروع أو أمر العمل.' },
-      { id: 'violationTypeId', msg: 'يرجى اختيار وصف المخالفة.' },
+      { id: 'violationTypeId', focusId: 'violationPickerTrigger', msg: 'يرجى اختيار وصف المخالفة.' },
       { id: 'injuryStatus', msg: 'يرجى تحديد ما إذا كانت هناك إصابة.' },
       { id: 'permitIssuer', msg: 'يرجى إدخال اسم مصدر التصريح.' },
       { id: 'permitReceiver', msg: 'يرجى إدخال اسم مستلم التصريح.' },
@@ -411,7 +535,9 @@
       if (!val) {
         valid = false;
         showFieldError(rule.id, rule.msg);
-        if (!firstErrorEl) firstErrorEl = el;
+        if (!firstErrorEl) {
+          firstErrorEl = document.getElementById(rule.focusId || rule.id);
+        }
       } else {
         clearFieldError(rule.id);
       }
@@ -474,6 +600,13 @@
       (window.APP_STATE.settings && window.APP_STATE.settings.fixedDepartment) ||
       window.APP_CONFIG.DEFAULTS.FIXED_DEPARTMENT;
 
+    document.getElementById('violationTypeId').value = '';
+    const pickerText = document.getElementById('violationPickerText');
+    if (pickerText) {
+      pickerText.textContent = '-- اضغط هنا لاختيار وصف المخالفة أو البحث عنه --';
+      pickerText.classList.add('is-placeholder');
+    }
+
     ['contractNumber', 'safetyRepName', 'violationNumber', 'violationClassification', 'consultantEmpNo'].forEach(function (id) {
       const el = document.getElementById(id);
       if (el) el.value = '';
@@ -487,7 +620,7 @@
       e.textContent = '';
       e.classList.remove('visible');
     });
-    document.querySelectorAll('.form-control.is-invalid').forEach(function (e) {
+    document.querySelectorAll('.is-invalid').forEach(function (e) {
       e.classList.remove('is-invalid');
     });
     document.querySelectorAll('textarea.auto-expand').forEach(function (el) {
@@ -514,7 +647,8 @@
   }
 
   function showFieldError(fieldId, msg) {
-    const input = document.getElementById(fieldId);
+    const targetId = fieldId === 'violationTypeId' ? 'violationPickerTrigger' : fieldId;
+    const input = document.getElementById(targetId);
     const errEl = document.getElementById('err-' + fieldId);
     if (input) input.classList.add('is-invalid');
     if (errEl) {
@@ -524,7 +658,8 @@
   }
 
   function clearFieldError(fieldId) {
-    const input = document.getElementById(fieldId);
+    const targetId = fieldId === 'violationTypeId' ? 'violationPickerTrigger' : fieldId;
+    const input = document.getElementById(targetId);
     const errEl = document.getElementById('err-' + fieldId);
     if (input) input.classList.remove('is-invalid');
     if (errEl) {
