@@ -248,6 +248,17 @@
       function (d) { return d.districtName; }
     );
 
+    const sectionsList = (settings.sections && settings.sections.length > 0)
+      ? settings.sections
+      : ['الإنشاءات', 'العمليات والصيانة'];
+    populateSelect(
+      'section',
+      sectionsList,
+      '-- اختر القسم --',
+      function (s) { return s; },
+      function (s) { return s; }
+    );
+
     populateSelect(
       'contractorId',
       settings.contractors || [],
@@ -528,7 +539,7 @@
     }
 
     const watchedIds = [
-      'district', 'location', 'violationDate', 'violationTime',
+      'district', 'section', 'location', 'violationDate', 'violationTime',
       'projectWoNumber', 'injuryStatus', 'permitIssuer', 'permitReceiver',
       'contractorRepName', 'contractorRepEmpNo', 'refusalReason'
     ];
@@ -614,7 +625,6 @@
           return window.SyncModule.enqueueAndSend(basePayload, mediaPayload);
         }
 
-        // في المرحلة السادسة: حفظ كامل المخالفة في IndexedDB محلياً بحالة مناسبة للاتصال
         const initialStatus = navigator.onLine
           ? window.LocalDB.STATUS.PENDING
           : window.LocalDB.STATUS.SAVED_LOCALLY;
@@ -623,10 +633,7 @@
           .then(function (savedRecord) {
             resetFormFields();
             refreshQueueUI();
-            const msg = navigator.onLine
-              ? 'تم حفظ المخالفة محلياً برقم UUID: ' + savedRecord.uuid.slice(0, 8) + '... (الحالة: ' + savedRecord.status + '). سيتم تفعيل الإرسال الفعلي للخادم في المرحلة القادمة.'
-              : 'أنت غير متصل بالإنترنت: تم حفظ المخالفة والصور والتوقيعات بأمان على جهازك (' + savedRecord.status + '). لن تُفقد البيانات.';
-            showGlobalAlert('success', msg);
+            showGlobalAlert('success', 'تم حفظ المخالفة محلياً بنجاح.');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           });
       })
@@ -649,8 +656,6 @@
       retryAllBtn.addEventListener('click', function () {
         if (window.SyncModule && typeof window.SyncModule.syncPendingQueue === 'function') {
           window.SyncModule.syncPendingQueue(true);
-        } else {
-          showGlobalAlert('info', 'تم حفظ المخالفات بأمان في قاعدة البيانات المحلية؛ سيتم ربط الإرسال الفعلي للخادم في المرحلة السابعة.');
         }
       });
     }
@@ -716,9 +721,9 @@
 
     details.innerHTML =
       '<div><strong>المقاول:</strong> ' + escapeHtml(d.contractorName || '-') + '</div>' +
-      '<div><strong>الدائرة / الموقع:</strong> ' + escapeHtml((d.district || '') + ' - ' + (d.location || '')) + '</div>' +
+      '<div><strong>القسم / الدائرة:</strong> ' + escapeHtml((d.section || '-') + ' - ' + (d.district || '') + ' (' + (d.location || '') + ')') + '</div>' +
       '<div><strong>التاريخ والوقت:</strong> ' + escapeHtml((d.violationDate || '') + ' ' + (d.violationTime || '')) + '</div>' +
-      '<div><strong>المخالف / الصور:</strong> ' + escapeHtml((d.violationNumber || '-') + ' (' + photosCount + ' صور)') + '</div>';
+      '<div><strong>المخالفة / الصور:</strong> ' + escapeHtml((d.violationNumber || '-') + ' (' + photosCount + ' صور)') + '</div>';
 
     card.appendChild(top);
     card.appendChild(details);
@@ -756,9 +761,6 @@
       retryBtn.addEventListener('click', function () {
         if (window.SyncModule && typeof window.SyncModule.sendSubmissionByUuid === 'function') {
           window.SyncModule.sendSubmissionByUuid(rec.uuid);
-        } else {
-          showGlobalAlert('info', 'المخالفة محفوظة محلياً بأمان؛ سيتم تفعيل الإرسال الفعلي للخادم في المرحلة السابعة.');
-          switchToTab('newViolationPanel');
         }
       });
       actions.appendChild(retryBtn);
@@ -793,6 +795,7 @@
 
     const requiredFields = [
       { id: 'district', msg: 'يرجى اختيار الدائرة.' },
+      { id: 'section', msg: 'يرجى اختيار القسم.' },
       { id: 'location', msg: 'يرجى إدخال الموقع.' },
       { id: 'violationDate', msg: 'يرجى تحديد تاريخ المخالفة.' },
       { id: 'violationTime', msg: 'يرجى تحديد وقت المخالفة.' },
@@ -847,6 +850,7 @@
     return {
       department: document.getElementById('department').value,
       district: document.getElementById('district').value,
+      section: document.getElementById('section').value,
       location: document.getElementById('location').value.trim(),
       violationDate: document.getElementById('violationDate').value,
       violationTime: document.getElementById('violationTime').value,
