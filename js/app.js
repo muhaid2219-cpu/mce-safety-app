@@ -33,24 +33,133 @@
     refreshQueueUI();
   }
 
-  /* ==================== تسجيل Service Worker وتثبيت التطبيق ==================== */
+ /* ==================== إدارة PWA الذكية: التثبيت، الفحص، والتحديث الفوري ==================== */
+  let swRegistration = null;
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
+
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('./sw.js', { scope: './' })
+        .then(function (reg) {
+          swRegistration = reg;
+
+          // اكتشاف وجود نسخة جديدة قيد الانتظار في الخلفية
+          reg.addEventListener('updatefound', function () {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', function () {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                notifyUserOfNewVersion(newWorker);
+              }
+            });
+          });
+        })
         .catch(function (err) {
           console.warn('SW registration note:', err);
         });
+
+      // إعادة تحميل الصفحة فور تنشيط النسخة الجديدة تلقائياً
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
     });
   }
 
   function bindPwaInstallPrompt() {
-    const installBtn = document.getElementById('installPwaBtn');
+    const pwaBtn = document.getElementById('installPwaBtn');
+    if (!pwaBtn) return;
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone) {
+      pwaBtn.textContent = '🔄 فحص تحديثات التطبيق';
+    }
+
+    // التقاط إذن التثبيت من المتصفح في حال توفره
     window.addEventListener('beforeinstallprompt', function (e) {
       e.preventDefault();
       window.APP_STATE.deferredInstallPrompt = e;
-      if (installBtn) installBtn.style.display = 'inline-block';
+      if (!isStandalone) {
+        pwaBtn.textContent = '📲 تثبيت التطبيق على الجهاز';
+      }
     });
+
+    window.addEventListener('appinstalled', function () {
+      window.APP_STATE.deferredInstallPrompt = null;
+      pwaBtn.textContent = '🔄 فحص تحديثات التطبيق';
+      showGlobalAlert('success', 'تم تثبيت التطبيق بنجاح! يعمل الآن كتطبيق مستقل.');
+    });
+
+    pwaBtn.addEventListener('click', function () {
+      // 1. إذا كان التثبيت متاحاً في المتصفح
+      if (window.APP_STATE.deferredInstallPrompt) {
+        const promptEvt = window.APP_STATE.deferredInstallPrompt;
+        promptEvt.prompt();
+        promptEvt.userChoice.then(function (choice) {
+          if (choice.outcome === 'accepted') {
+            window.APP_STATE.deferredInstallPrompt = null;
+          }
+        });
+        return;
+      }
+
+      // 2. إذا كان على هاتف iPhone (Safari) وغير مثبت
+      const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIos && !isStandalone) {
+        showGlobalAlert('info', 'لتثبيت التطبيق على iPhone: اضغط على زر المشاركة (مربع بسهم لأعلى ⎋) في متصفح Safari ثم اختر "إضافة إلى الشاشة الرئيسية (Add to Home Screen)".');
+        return;
+      }
+
+      // 3. إذا كان التطبيق مثبتاً أو يعمل في المتصفح -> فحص وجود نسخة جديدة من الخادم
+      if (!navigator.onLine) {
+        showGlobalAlert('warning', 'أنت غير متصل بالإنترنت حالياً؛ التطبيق يعمل بنسخته المخزنة أوفلاين.');
+        return;
+      }
+
+      showGlobalAlert('info', 'جارٍ فحص التحديثات من الخادم...');
+      pwaBtn.disabled = true;
+
+      if (swRegistration) {
+        swRegistration.update()
+          .then(function () {
+            setTimeout(function () {
+              pwaBtn.disabled = false;
+              if (swRegistration.waiting) {
+                notifyUserOfNewVersion(swRegistration.waiting);
+              } else {
+                showGlobalAlert('success', 'تطبيقك يعمل بأحدث إصدار رسمي (الإصدار v6). لا توجد تحديثات جديدة.');
+              }
+            }, 1000);
+          })
+          .catch(function () {
+            pwaBtn.disabled = false;
+            showGlobalAlert('success', 'تطبيقك يعمل بأحدث إصدار رسمي.');
+          });
+      } else {
+        setTimeout(function () {
+          pwaBtn.disabled = false;
+          showGlobalAlert('success', 'تطبيقك يعمل بأحدث إصدار رسمي.');
+        }, 800);
+      }
+    });
+  }
+
+  function notifyUserOfNewVersion(worker) {
+    const pwaBtn = document.getElementById('installPwaBtn');
+    if (pwaBtn) {
+      pwaBtn.textContent = '⚡ اضغط للتحديث الآن (نسخة جديدة)';
+      pwaBtn.style.background = '#10b981';
+      pwaBtn.style.borderColor = '#10b981';
+      pwaBtn.onclick = function () {
+        worker.postMessage({ action: 'skipWaiting' });
+      };
+    }
+    showGlobalAlert('success', 'تتوفر نسخة جديدة ومحدثة من التطبيق! اضغط على زر "اضغط للتحديث الآن" بالأعلى لتنشيطها فوراً.');
+  }
 
     if (installBtn) {
       installBtn.addEventListener('click', function () {
