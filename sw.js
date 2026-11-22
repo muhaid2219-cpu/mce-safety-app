@@ -4,7 +4,7 @@
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
-const CACHE_NAME = 'mce-safety-pwa-v4';
+const CACHE_NAME = 'mce-safety-pwa-v5';
 
 const APP_SHELL_ASSETS = [
   './',
