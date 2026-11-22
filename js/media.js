@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  const MAX_PHOTO_DIMENSION = 1400;
+  const MAX_PHOTO_DIMENSION = 960;
   const PHOTO_JPEG_QUALITY = 0.78;
   const MAX_SIG_WIDTH = 600;
   const MAX_SIG_HEIGHT = 260;
