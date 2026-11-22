@@ -1,6 +1,6 @@
 /**
  * js/app.js
- * منطق واجهة المهندسين: PWA، التخزين المحلي أوفلاين (IndexedDB)، الطابور، والملء التلقائي
+ * منطق واجهة المهندسين: PWA الذكي، التخزين المحلي أوفلاين، زر التثبيت والتحديث، والملء التلقائي
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
@@ -8,6 +8,8 @@
   'use strict';
 
   const SETTINGS_LS_FALLBACK_KEY = 'MCE_PUBLIC_SETTINGS_CACHE_V1';
+
+  let swRegistration = null;
 
   window.APP_STATE = {
     settings: null,
@@ -33,9 +35,7 @@
     refreshQueueUI();
   }
 
- /* ==================== إدارة PWA الذكية: التثبيت، الفحص، والتحديث الفوري ==================== */
-  let swRegistration = null;
-
+  /* ==================== إدارة PWA الذكية: التثبيت، الفحص، والتحديث ==================== */
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
 
@@ -161,19 +161,6 @@
     showGlobalAlert('success', 'تتوفر نسخة جديدة ومحدثة من التطبيق! اضغط على زر "اضغط للتحديث الآن" بالأعلى لتنشيطها فوراً.');
   }
 
-    if (installBtn) {
-      installBtn.addEventListener('click', function () {
-        const promptEvt = window.APP_STATE.deferredInstallPrompt;
-        if (!promptEvt) return;
-        promptEvt.prompt();
-        promptEvt.userChoice.finally(function () {
-          window.APP_STATE.deferredInstallPrompt = null;
-          installBtn.style.display = 'none';
-        });
-      });
-    }
-  }
-
   /* ==================== مراقبة حالة الاتصال ==================== */
   function bindConnectionMonitor() {
     updateConnectionBadge();
@@ -296,7 +283,7 @@
         persistSettingsLocally(json.data);
         applySettingsToUI(json.data);
         if (isManualRefresh) {
-          showGlobalAlert('success', 'تم تحديث وحفظ قوائم المقاولين والمهندسين والمخالفات والشعارات للعمل أوفلاين بنجاح.');
+          showGlobalAlert('success', 'تم تحديث وحفظ قوائم المقاولين والمهندسين والمخالفات والشعارات بنجاح.');
         }
       })
       .catch(function (err) {
