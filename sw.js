@@ -1,10 +1,10 @@
 /**
  * sw.js
- * Service Worker لتشغيل تطبيق المهندسين دون اتصال بالإنترنت (Offline-First)
+ * Service Worker لتشغيل تطبيق المهندسين أوفلاين مع الفحص والتحديث الفوري
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
-const CACHE_NAME = 'mce-safety-pwa-v5';
+const CACHE_NAME = 'mce-safety-pwa-v6';
 
 const APP_SHELL_ASSETS = [
   './',
@@ -46,9 +46,15 @@ self.addEventListener('activate', function (event) {
   );
 });
 
+// استقبال أمر التحديث وتفعيل النسخة الجديدة فوراً
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', function (event) {
   const req = event.request;
-
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
