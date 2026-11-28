@@ -1,6 +1,6 @@
 /**
  * js/app.js
- * منطق واجهة المهندسين: PWA الذكي، التخزين المحلي أوفلاين، زر التثبيت والتحديث، والملء التلقائي
+ * منطق واجهة المهندسين: المكتب، الدائرة/القسم، PWA الذكي، والأوفلاين
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
@@ -43,8 +43,6 @@
       navigator.serviceWorker.register('./sw.js', { scope: './' })
         .then(function (reg) {
           swRegistration = reg;
-
-          // اكتشاف وجود نسخة جديدة قيد الانتظار في الخلفية
           reg.addEventListener('updatefound', function () {
             const newWorker = reg.installing;
             if (!newWorker) return;
@@ -59,7 +57,6 @@
           console.warn('SW registration note:', err);
         });
 
-      // إعادة تحميل الصفحة فور تنشيط النسخة الجديدة تلقائياً
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
         if (!refreshing) {
@@ -79,7 +76,6 @@
       pwaBtn.textContent = '🔄 فحص تحديثات التطبيق';
     }
 
-    // التقاط إذن التثبيت من المتصفح في حال توفره
     window.addEventListener('beforeinstallprompt', function (e) {
       e.preventDefault();
       window.APP_STATE.deferredInstallPrompt = e;
@@ -95,7 +91,6 @@
     });
 
     pwaBtn.addEventListener('click', function () {
-      // 1. إذا كان التثبيت متاحاً في المتصفح
       if (window.APP_STATE.deferredInstallPrompt) {
         const promptEvt = window.APP_STATE.deferredInstallPrompt;
         promptEvt.prompt();
@@ -107,14 +102,12 @@
         return;
       }
 
-      // 2. إذا كان على هاتف iPhone (Safari) وغير مثبت
       const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
       if (isIos && !isStandalone) {
         showGlobalAlert('info', 'لتثبيت التطبيق على iPhone: اضغط على زر المشاركة (مربع بسهم لأعلى ⎋) في متصفح Safari ثم اختر "إضافة إلى الشاشة الرئيسية (Add to Home Screen)".');
         return;
       }
 
-      // 3. إذا كان التطبيق مثبتاً أو يعمل في المتصفح -> فحص وجود نسخة جديدة من الخادم
       if (!navigator.onLine) {
         showGlobalAlert('warning', 'أنت غير متصل بالإنترنت حالياً؛ التطبيق يعمل بنسخته المخزنة أوفلاين.');
         return;
@@ -131,7 +124,7 @@
               if (swRegistration.waiting) {
                 notifyUserOfNewVersion(swRegistration.waiting);
               } else {
-                showGlobalAlert('success', 'تطبيقك يعمل بأحدث إصدار رسمي (الإصدار v6). لا توجد تحديثات جديدة.');
+                showGlobalAlert('success', 'تطبيقك يعمل بأحدث إصدار رسمي (v8). لا توجد تحديثات جديدة.');
               }
             }, 1000);
           })
@@ -339,7 +332,7 @@
     populateSelect(
       'district',
       settings.departments || [],
-      '-- اختر الدائرة --',
+      '-- اختر المكتب --',
       function (d) { return d.districtName; },
       function (d) { return d.districtName; }
     );
@@ -350,7 +343,7 @@
     populateSelect(
       'section',
       sectionsList,
-      '-- اختر القسم --',
+      '-- اختر الدائرة / القسم --',
       function (s) { return s; },
       function (s) { return s; }
     );
@@ -726,7 +719,7 @@
           : window.LocalDB.STATUS.SAVED_LOCALLY;
 
         return window.LocalDB.saveSubmission(basePayload, mediaPayload, initialStatus)
-          .then(function (savedRecord) {
+          .then(function () {
             resetFormFields();
             refreshQueueUI();
             showGlobalAlert('success', 'تم حفظ المخالفة محلياً بنجاح.');
@@ -817,7 +810,7 @@
 
     details.innerHTML =
       '<div><strong>المقاول:</strong> ' + escapeHtml(d.contractorName || '-') + '</div>' +
-      '<div><strong>القسم / الدائرة:</strong> ' + escapeHtml((d.section || '-') + ' - ' + (d.district || '') + ' (' + (d.location || '') + ')') + '</div>' +
+      '<div><strong>الدائرة / المكتب:</strong> ' + escapeHtml((d.section || '-') + ' - ' + (d.district || '') + ' (' + (d.location || '') + ')') + '</div>' +
       '<div><strong>التاريخ والوقت:</strong> ' + escapeHtml((d.violationDate || '') + ' ' + (d.violationTime || '')) + '</div>' +
       '<div><strong>المخالفة / الصور:</strong> ' + escapeHtml((d.violationNumber || '-') + ' (' + photosCount + ' صور)') + '</div>';
 
@@ -890,8 +883,8 @@
     let valid = true;
 
     const requiredFields = [
-      { id: 'district', msg: 'يرجى اختيار الدائرة.' },
-      { id: 'section', msg: 'يرجى اختيار القسم.' },
+      { id: 'district', msg: 'يرجى اختيار المكتب.' },
+      { id: 'section', msg: 'يرجى اختيار الدائرة / القسم.' },
       { id: 'location', msg: 'يرجى إدخال الموقع.' },
       { id: 'violationDate', msg: 'يرجى تحديد تاريخ المخالفة.' },
       { id: 'violationTime', msg: 'يرجى تحديد وقت المخالفة.' },
