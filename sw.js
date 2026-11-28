@@ -1,10 +1,10 @@
 /**
  * sw.js
- * Service Worker لتشغيل تطبيق المهندسين أوفلاين مع تحديث نظيف دون تكرار
+ * Service Worker مستقر لتشغيل التطبيق أوفلاين وتفعيل التحديثات فوراً بدون تعليق
  * شركة المحايد مهندسون استشاريون (MCE)
  */
 
-const CACHE_NAME = 'mce-safety-pwa-v9';
+const CACHE_NAME = 'mce-safety-pwa-v10';
 
 const APP_SHELL_ASSETS = [
   './',
@@ -23,6 +23,8 @@ self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
       return cache.addAll(APP_SHELL_ASSETS);
+    }).then(function () {
+      return self.skipWaiting();
     })
   );
 });
